@@ -179,7 +179,7 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: platform-ready
+    - name: lab-charts-source
   interval: 10m
   path: clusters/edge-w/platform/services/istio-base
   prune: true

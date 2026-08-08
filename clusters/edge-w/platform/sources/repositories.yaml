@@ -15,12 +15,3 @@ metadata:
 spec:
   interval: 1h
   url: https://kubernetes.github.io/cloud-provider-openstack
----
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata:
-  name: istio
-  namespace: flux-system
-spec:
-  interval: 1h
-  url: https://istio-release.storage.googleapis.com/charts
