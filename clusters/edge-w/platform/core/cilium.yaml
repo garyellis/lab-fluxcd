@@ -57,14 +57,41 @@ spec:
     bpf:
       masquerade: false
 
+    # Istio owns L7 for this fleet: every cluster runs its own istiod and ingress
+    # gateway. Cilium stays an L3/L4 dataplane, so the standalone cilium-envoy
+    # DaemonSet is dead weight -- one Envoy per node that nothing programs.
+    #
+    # This is not the Cilium ingress controller. ingressController.enabled,
+    # gatewayAPI.enabled, and envoyConfig.enabled are all false by chart default and
+    # stay unset here; the DaemonSet renders only because envoy.enabled is null and
+    # the chart's envoyDaemonSetEnabled helper defaults it true for >=1.16. Setting
+    # it false does not remove Envoy from the cluster -- it moves the proxy back
+    # inside cilium-agent (external-envoy-proxy: false) and leaves
+    # enable-l7-proxy: true, so L7 CiliumNetworkPolicy and toFQDNs still work.
+    envoy:
+      enabled: false
+
     hubble:
       enabled: true
+      # Relay and UI are plain Deployments and the chart gives them no tolerations.
+      # The bootstrap install runs in 03-platform, before 04-workers, so the only
+      # node in the cluster is the control plane that kubeadm-config.yaml.j2 taints
+      # node-role.kubernetes.io/control-plane:NoSchedule. That combination does not
+      # degrade gracefully: bootstrap_cilium installs with `--atomic --wait`, so a
+      # Pending relay pod rolls the entire Cilium release back at the 10m timeout
+      # and takes the CNI with it. These tolerations are what let both schedule
+      # inside the control-plane-only window. UI also requires relay -- it is a
+      # frontend for relay's gRPC API -- so the two are enabled as a pair.
       relay:
-        enabled: false
+        enabled: true
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
       ui:
-        # Relay and UI need schedulable worker capacity. Keep both disabled at the
-        # control-plane bootstrap boundary; Flux can enable them after workers join.
-        enabled: false
+        enabled: true
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
 
     resources:
       requests:
