@@ -1,0 +1,26 @@
+apiVersion: extensions.istio.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: coraza-waf
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+  url: oci://ghcr.io/corazawaf/coraza-proxy-wasm:0.5.0
+  imagePullPolicy: IfNotPresent
+  # AUTHN runs the filter before routing, so a blocked request never reaches an
+  # upstream cluster.
+  phase: AUTHN
+  pluginConfig:
+    directives_map:
+      default:
+        - 'SecDefaultAction "phase:2,log,auditlog,pass"'
+        - 'SecRule ARGS:test-waf "@streq true" "id:1001,phase:1,log,msg:''Coraza WAF Monitoring: Test Query Param Detected''"'
+        # The OWASP Core Rule Set ships in the image. Enable it only after
+        # measuring gateway memory on the pilot -- CRS is the expensive part.
+        # - "include @crs-setup.conf.example"
+        # - "include @owasp_crs/*.conf"
+    default_directives: default

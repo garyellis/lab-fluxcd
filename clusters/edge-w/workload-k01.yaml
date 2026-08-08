@@ -1,0 +1,25 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: workload-k01
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: platform-tenancy
+    - name: workload-certificate
+  interval: 10m
+  path: ./workloads/k01/environments/dw
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-variables
+        optional: false
+    substituteStrategy: Always
+  prune: true
+  serviceAccountName: workload-k01
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  targetNamespace: k01
+  timeout: 10m
+  wait: true

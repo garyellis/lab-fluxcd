@@ -1,0 +1,51 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istiod
+  namespace: istio-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: istiod
+      version: "1.28.2"
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: istio-system
+  values:
+    global:
+      # meshID and network are fleet constants, NOT per-cluster values. Every
+      # cluster is an independent mesh today, but meshID feeds the SPIFFE trust
+      # domain: changing it later invalidates every workload certificate and
+      # forces a full mesh re-bootstrap. Setting it once now is what keeps mesh
+      # federation a later optimization rather than a rebuild.
+      #
+      # network is likewise shared: east and west are logical promotion regions
+      # on one flat 10.128.0.0/24. Distinct network values would tell Istio the
+      # clusters are not directly reachable and push traffic through east-west
+      # gateways that do not exist.
+      meshID: lab-mesh
+      network: lab
+      multiCluster:
+        # Unique per cluster. This is the value that must differ.
+        clusterName: edge-w
+    pilot:
+      # Explicit requests and limits are required for every platform component
+      # per lab-k8s.md section 10. These are sized for the lab, not for load.
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      autoscaleEnabled: false
+      replicaCount: 1

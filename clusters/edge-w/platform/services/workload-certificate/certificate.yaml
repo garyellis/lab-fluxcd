@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ${CLUSTER_NAME}-wildcard
+  namespace: istio-ingress
+spec:
+  dnsNames:
+    - "${APPLICATION_DNS_WILDCARD}"
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: letsencrypt-staging
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  secretName: ${CLUSTER_NAME}-wildcard-tls

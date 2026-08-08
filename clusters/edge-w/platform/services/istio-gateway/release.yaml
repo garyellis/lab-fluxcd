@@ -1,0 +1,76 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-ingress
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: gateway
+      version: "1.28.2"
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: istio-ingress
+  values:
+    podAnnotations:
+      # Accept the PROXY header Octavia sends so Envoy sees the real client
+      # address, then trust exactly that one hop when computing XFF. Downstream
+      # clusters read the client IP from XFF, so no second PROXY hop is needed.
+      proxy.istio.io/config: '{"gatewayTopology":{"proxyProtocol":{},"numTrustedProxies":1}}'
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    # Both replicas must land on different workers: the edge ServiceEntry
+    # targets both worker addresses on the same NodePort, and a single-node
+    # placement would make one of those endpoints a black hole.
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: istio-ingressgateway
+    # The edge cluster owns shared north-south ingress. Its Service is the only
+    # LoadBalancer in the fleet and drives the single shared Octavia amphora.
+    # These annotations reproduce the proven configuration from the previous
+    # edge deployment; spec section 7 requires the floating address, PROXY
+    # protocol, and health-monitor settings to be preserved.
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Cluster
+      annotations:
+        # Claim the OpenTofu-owned floating IP by address rather than letting
+        # Octavia allocate a new one. spec.loadBalancerIP is deprecated upstream;
+        # this annotation is what the OpenStack CCM actually honours.
+        loadbalancer.openstack.org/load-balancer-address: "192.168.1.241"
+        # Leave the floating IP behind when this Service is deleted. The address
+        # is declared in OpenTofu and must outlive any single cluster.
+        loadbalancer.openstack.org/keep-floatingip: "true"
+        loadbalancer.openstack.org/proxy-protocol: "true"
+        loadbalancer.openstack.org/enable-health-monitor: "true"
+        loadbalancer.openstack.org/health-monitor-delay: "10"
+        loadbalancer.openstack.org/health-monitor-timeout: "5"
+        loadbalancer.openstack.org/health-monitor-max-retries: "3"
+      ports:
+        - name: http2
+          port: 80
+          protocol: TCP
+          targetPort: 8080
+        - name: https
+          port: 443
+          protocol: TCP
+          targetPort: 443
