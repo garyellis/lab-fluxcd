@@ -1,8 +1,6 @@
 schemaVersion: "1"
 clusterName: edge-w
 clusterRole: edge
-clusterGroup: k01
-environment: dw
 managedBy: ansible-platform-bootstrap
 # Versions in effect when this cluster was vended. The Ansible inventory holds
 # intent and changes over time; this records what was actually installed.
