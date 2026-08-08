@@ -6,4 +6,4 @@ metadata:
 spec:
   type: oci
   interval: 10m
-  url: oci://ghcr.io/garyellis/lab-charts
+  url: oci://ghcr.io/garyellis/charts
