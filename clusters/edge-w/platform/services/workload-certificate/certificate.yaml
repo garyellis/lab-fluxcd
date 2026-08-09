@@ -5,7 +5,7 @@ metadata:
   namespace: istio-ingress
 spec:
   dnsNames:
-    - "${APPLICATION_DNS_WILDCARD}"
+    - "*.${APPLICATION_DNS_DOMAIN}"
   issuerRef:
     group: cert-manager.io
     kind: ClusterIssuer
