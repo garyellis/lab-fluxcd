@@ -19,4 +19,4 @@ spec:
             port:
               number: 80
       # Disabled, not raised. The flow stream has no natural upper bound.
-      timeout: 0s
+      timeout: 10s
