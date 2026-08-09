@@ -1,0 +1,22 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: hubble-ui
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: edge-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  hosts:
+    - hubble.edge-w.int.garys-lab.io
+  gateways:
+    - istio-ingress/edge-local-ingress
+  http:
+    - route:
+        - destination:
+            host: >-
+              hubble-ui.kube-system.svc.cluster.local
+            port:
+              number: 80
+      # Disabled, not raised. The flow stream has no natural upper bound.
+      timeout: 0s

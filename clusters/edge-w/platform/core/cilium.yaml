@@ -1,0 +1,122 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cilium
+  namespace: flux-system
+spec:
+  interval: 30m
+  releaseName: cilium
+  targetNamespace: kube-system
+  storageNamespace: kube-system
+  chart:
+    spec:
+      chart: cilium
+      version: 1.20.0
+      sourceRef:
+        kind: HelmRepository
+        name: cilium
+        namespace: flux-system
+      interval: 1h
+  install:
+    crds: CreateReplace
+    remediation: {retries: 3}
+  upgrade:
+    crds: CreateReplace
+    remediation: {retries: 3}
+  values:
+    cluster:
+      name: "edge-w"
+      id: 100
+
+    kubeProxyReplacement: true
+    # An address, never kube_api_fqdn. Cilium is the first workload on the cluster
+    # and must reach the API server before CoreDNS exists, so it cannot depend on
+    # any in-cluster resolver. It cannot use the node resolver either: the lab split
+    # DNS routes int.garys-lab.io to 192.168.1.213 through a systemd-resolved
+    # routing-only domain, which has no representation in a flat resolv.conf. kubelet
+    # hands pods /run/systemd/resolve/resolv.conf, which lists only the global
+    # 192.168.1.1, so kube-api.<cluster>.int.garys-lab.io does not resolve inside any
+    # pod. `resolvectl query` on the node succeeds and hides this, because resolved
+    # applies the routing domain that the copied file cannot express.
+    k8sServiceHost: "10.128.0.11"
+    k8sServicePort: "6443"
+
+    ipam:
+      mode: kubernetes
+    routingMode: tunnel
+    tunnelProtocol: vxlan
+    MTU: 1400
+
+    cni:
+      exclusive: true
+
+    socketLB:
+      enabled: true
+      hostNamespaceOnly: true
+
+    bpf:
+      masquerade: false
+
+    # Istio owns L7 for this fleet: every cluster runs its own istiod and ingress
+    # gateway. Cilium stays an L3/L4 dataplane, so the standalone cilium-envoy
+    # DaemonSet is dead weight -- one Envoy per node that nothing programs.
+    #
+    # This is not the Cilium ingress controller. ingressController.enabled,
+    # gatewayAPI.enabled, and envoyConfig.enabled are all false by chart default and
+    # stay unset here; the DaemonSet renders only because envoy.enabled is null and
+    # the chart's envoyDaemonSetEnabled helper defaults it true for >=1.16. Setting
+    # it false does not remove Envoy from the cluster -- it moves the proxy back
+    # inside cilium-agent (external-envoy-proxy: false) and leaves
+    # enable-l7-proxy: true, so L7 CiliumNetworkPolicy and toFQDNs still work.
+    envoy:
+      enabled: false
+
+    # Agent-side Hubble is free -- it is flow collection inside the cilium-agent
+    # DaemonSet, no extra pod -- so it stays on from the very first install.
+    hubble:
+      enabled: true
+      # Relay and UI, by contrast, cannot come up during the Ansible bootstrap, and
+      # no toleration fixes it. They are gated off here and switched on only by the
+      # Flux render in platform/core/cilium.yaml.j2, which passes this variable
+      # through template_vars. Both paths share this one template, so the default
+      # must be the bootstrap-safe value.
+      #
+      # The bootstrap install runs in 03-platform, before 04-workers, against a
+      # lone control-plane node carrying two taints: control-plane:NoSchedule from
+      # kubeadm-config.yaml.j2, and cloudprovider.../uninitialized:NoSchedule
+      # because kubernetes_packages runs kubelet with --cloud-provider=external.
+      # Tolerating both only gets relay Running, not Ready -- it dials
+      # hubble-peer.kube-system.svc.cluster.local, and CoreDNS is itself Pending on
+      # the uninitialized taint, which only the CCM clears, and addons.yml installs
+      # the CCM after Cilium. Since bootstrap_cilium installs with `--atomic
+      # --wait`, relay never going Ready rolls the whole release back at the 10m
+      # timeout and takes the CNI with it -- stranding the CCM that would have
+      # broken the cycle. Deferring relay to Flux, once CoreDNS and the CCM are up,
+      # is what breaks it. UI is a frontend for relay's gRPC API, so it follows.
+      relay:
+        enabled: true
+        # Kept for the Flux path: a cluster whose workers are all cordoned or not
+        # yet joined still needs somewhere to put these two Deployments. The
+        # uninitialized taint is deliberately NOT tolerated -- by the time Flux
+        # reconciles, the CCM has long since cleared it, and tolerating it would let
+        # relay land on a node whose provider ID and topology labels are unset.
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+      ui:
+        enabled: true
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    operator:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
