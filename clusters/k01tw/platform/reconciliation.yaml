@@ -1,0 +1,257 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-sources
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: clusters/k01tw/platform/sources
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-secrets
+  namespace: flux-system
+spec:
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  interval: 10m
+  path: clusters/k01tw/platform/secrets
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-core
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: platform-sources
+    - name: platform-secrets
+  interval: 10m
+  path: clusters/k01tw/platform/core
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 15m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-handoff
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: platform-core
+  interval: 10m
+  path: clusters/k01tw/platform/handoff
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-ready
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: platform-core
+    - name: platform-handoff
+  interval: 10m
+  path: clusters/k01tw/platform/readiness
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: lab-charts-source
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: platform-ready
+  interval: 10m
+  path: clusters/k01tw/platform/sources/lab-charts
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cert-manager
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-charts-source
+  interval: 10m
+  path: clusters/k01tw/platform/services/cert-manager
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cert-manager-secrets
+  namespace: flux-system
+spec:
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  dependsOn:
+    - name: cert-manager
+  interval: 10m
+  path: clusters/k01tw/platform/cert-manager-secrets
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cert-manager-config
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: cert-manager-secrets
+  interval: 10m
+  path: clusters/k01tw/platform/services/cert-manager-config
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: workload-certificate
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: cert-manager-config
+  interval: 10m
+  path: clusters/k01tw/platform/services/workload-certificate
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-variables
+        optional: false
+    substituteStrategy: Always
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: istio-base
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-charts-source
+  interval: 10m
+  path: clusters/k01tw/platform/services/istio-base
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: istio-istiod
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: istio-base
+  interval: 10m
+  path: clusters/k01tw/platform/services/istio-istiod
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: istio-gateway
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: istio-istiod
+    - name: workload-certificate
+  interval: 10m
+  path: clusters/k01tw/platform/services/istio-gateway
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-tenancy
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: istio-gateway
+  interval: 10m
+  path: clusters/k01tw/platform/tenancy
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hubble-ui-route
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: istio-gateway
+  interval: 10m
+  path: clusters/k01tw/platform/services/hubble-ui-route
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true

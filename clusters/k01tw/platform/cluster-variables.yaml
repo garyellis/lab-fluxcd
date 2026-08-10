@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-variables
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/managed-by: flux
+    app.kubernetes.io/part-of: platform
+    platform.garys-lab.io/cluster-group: k01
+    reconcile.fluxcd.io/watch: Enabled
+# CLUSTER_GROUP and CLUSTER_ENVIRONMENT are empty on a cluster that hosts no
+# workload group. The keys stay present for every role because the controller
+# runs with StrictPostBuildSubstitutions=true and substituteStrategy: Always:
+# a key that exists on some clusters and not others turns any future
+# ${CLUSTER_GROUP} reference into a reconcile-time failure on exactly the
+# clusters that were not tested.
+data:
+  CLUSTER_NAME: "k01tw"
+  CLUSTER_ROLE: "workload"
+  CLUSTER_GROUP: "k01"
+  CLUSTER_ENVIRONMENT: "tw"
+  CLUSTER_DOMAIN: "cluster.local"
+  APPLICATION_DNS_DOMAIN: "k01tw.int.garys-lab.io"
+  APPLICATION_DNS_WILDCARD: "*.k01tw.int.garys-lab.io"
+  INGRESS_FQDN: "ingress.k01tw.int.garys-lab.io"

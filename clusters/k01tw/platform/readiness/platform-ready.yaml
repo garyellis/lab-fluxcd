@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-ready
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/managed-by: flux
+    app.kubernetes.io/part-of: platform-bootstrap
+data:
+  clusterName: k01tw
+  platformReady: "true"

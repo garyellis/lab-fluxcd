@@ -1,0 +1,93 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k01tw-wildcard
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: k01tw
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  secretName: k01tw-wildcard-tls
+  dnsNames:
+    - "*.k01tw.int.garys-lab.io"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-staging
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: k01tw-ingress
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: k01tw
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  selector:
+    app: istio-ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https-k01tw
+        protocol: HTTPS
+      hosts:
+        - "*.k01tw.int.garys-lab.io"
+      tls:
+        mode: SIMPLE
+        credentialName: k01tw-wildcard-tls
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: k01tw-routes
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: k01tw
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  hosts:
+    - "*.k01tw.int.garys-lab.io"
+  gateways:
+    - istio-ingress/k01tw-ingress
+  http:
+    - route:
+        - destination:
+            host: k01tw.ingress.edge.internal
+            port:
+              number: 30443
+---
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: k01tw-ingress
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: k01tw
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  hosts:
+    - k01tw.ingress.edge.internal
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 30443
+      name: https
+      protocol: HTTPS
+  endpoints:
+    - address: ingress.k01tw.int.garys-lab.io
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: k01tw-ingress
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: k01tw
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  host: k01tw.ingress.edge.internal
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: ingress.k01tw.int.garys-lab.io
+      credentialName: lab-ca-bundle
