@@ -1,0 +1,22 @@
+# This listener intentionally has no route yet. It gives ExternalDNS a bounded
+# host to publish without exposing a backend before Thanos Receive exists.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: observability-receiver
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  selector:
+    app: observability-ingress
+  servers:
+    - port:
+        number: 443
+        name: receiver-tls
+        protocol: TLS
+      hosts:
+        - "receiver.obs-w.int.garys-lab.io"
+      tls:
+        mode: PASSTHROUGH

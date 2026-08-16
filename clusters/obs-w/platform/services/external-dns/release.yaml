@@ -1,0 +1,36 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: external-dns
+      version: "0.1.2"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: external-dns
+  values:
+    external-dns:
+      # The zone is fleet configuration, not a chart constant. Restated from
+      # the inventory so a zone rename cannot leave the chart's default
+      # silently filtering out every record this cluster is meant to publish.
+      # The observability publisher owns one host, not the fleet zone. Restrict
+      # both discovery and synchronization so it cannot consider edge records.
+      sources:
+        - istio-gateway
+      domainFilters:
+        - receiver.obs-w.int.garys-lab.io
+      # Ownership must be unique: edge and observability controllers share the
+      # same Designate zone and both run with policy: sync.
+      txtOwnerId: "obs-w-designate"

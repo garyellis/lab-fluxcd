@@ -1,0 +1,93 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: obs-w-wildcard
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  secretName: obs-w-wildcard-tls
+  dnsNames:
+    - "hubble.obs-w.int.garys-lab.io"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-staging
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: obs-w-ingress
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  selector:
+    app: istio-ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https-obs-w
+        protocol: HTTPS
+      hosts:
+        - "hubble.obs-w.int.garys-lab.io"
+      tls:
+        mode: SIMPLE
+        credentialName: obs-w-wildcard-tls
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: obs-w-routes
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  hosts:
+    - "hubble.obs-w.int.garys-lab.io"
+  gateways:
+    - istio-ingress/obs-w-ingress
+  http:
+    - route:
+        - destination:
+            host: obs-w.ingress.edge.internal
+            port:
+              number: 30443
+---
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: obs-w-ingress
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  hosts:
+    - obs-w.ingress.edge.internal
+  location: MESH_EXTERNAL
+  resolution: STATIC
+  ports:
+    - number: 30443
+      name: https
+      protocol: HTTPS
+  endpoints:
+    - address: 192.168.252.2
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: obs-w-ingress
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  host: obs-w.ingress.edge.internal
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: ingress.obs-w.int.garys-lab.io
+      credentialName: lab-ca-bundle

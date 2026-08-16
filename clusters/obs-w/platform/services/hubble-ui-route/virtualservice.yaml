@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: hubble-ui
+  namespace: istio-ingress
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  hosts:
+    - hubble.obs-w.int.garys-lab.io
+  gateways:
+    - istio-ingress/workload-ingress
+  http:
+    - route:
+        - destination:
+            host: >-
+              hubble-ui.kube-system.svc.cluster.local
+            port:
+              number: 80
+      # Bounded far out, not disabled. `0s` was the documented way to disable a
+      # route timeout and the CRD now rejects it -- "must be a valid duration
+      # greater than 1ms", a CEL rule on the field -- so it fails the dry-run
+      # apply and the whole Kustomization stops reconciling on it.
+      #
+      # Omitting the field would work today too: istiod replaces Envoy's 15s
+      # route default with ISTIO_DEFAULT_REQUEST_TIMEOUT, which is 0ms. That is
+      # a mesh-wide knob in istiod's release, though, not a property of this
+      # route, so the value this route needs is stated here instead of inherited
+      # from somewhere it can be changed for unrelated reasons.
+      #
+      # 24h outlives any browser session -- the flow stream has no natural upper
+      # bound -- while still putting a ceiling on what a wedged upstream can
+      # hold open on the gateway.
+      timeout: 24h

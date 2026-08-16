@@ -1,0 +1,94 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-ingress
+spec:
+  interval: 10m
+  releaseName: istio-ingressgateway
+  chart:
+    spec:
+      chart: istio-gateway
+      version: "0.1.3"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  test:
+    enable: true
+    ignoreFailures: false
+  targetNamespace: istio-ingress
+  values:
+    # The wrapper ships a standalone-install starter kit: an apps-gateway
+    # Gateway, a self-signed CA chain with an apps-wildcard leaf, and a
+    # hubble-ui VirtualService. All three are owned by this scaffold instead.
+    #
+    # The listener topology is role-aware here (an HTTP redirect at the edge, a
+    # workload-ingress terminator elsewhere) and lives in gateway.yaml. The
+    # issuing story is role-aware too -- ACME at the edge, the shared fleet CA
+    # in workload clusters -- and lives in services/cert-manager-config plus
+    # services/workload-certificate. Leaving the chart's versions on would mint
+    # a second, competing root CA and a second Gateway contending for port 80.
+    appsGateway:
+      enabled: false
+    certManager:
+      enabled: false
+    routes:
+      hubbleUi:
+        enabled: false
+    gateway:
+      labels:
+        app: istio-ingressgateway
+        istio: ingressgateway
+      replicaCount: 1
+      # The wrapper requires a node labelled node-role.kubernetes.io/edge and
+      # tolerates a matching taint. No node in this fleet carries either:
+      # kubeadm_join_worker applies node-role.kubernetes.io/worker, and edge-ness
+      # is a property of the cluster, not of a node within it. Left in place the
+      # required nodeAffinity would hold every replica Pending forever.
+      #
+      # Replaced rather than nulled: `nodeAffinity: null` does delete the
+      # wrapper's terms, but Helm keeps the key and renders a literal
+      # `nodeAffinity: null` into the Deployment. Restating the term says the
+      # same thing the wrapper meant -- gateways belong on workers, never on
+      # the control-plane node that also runs etcd and the apiserver -- in a
+      # label this fleet actually applies. The emptied tolerations then keep
+      # the pods off the NoSchedule-tainted control plane as a second gate.
+      affinity: {}
+      tolerations: []
+      topologySpreadConstraints: []
+      # Workload clusters never create an Octavia load balancer. The edge reaches
+      # them directly on these fixed NodePorts, which lab-k8s.md section 6 pins.
+      #
+      # The wrapper's loadbalancer.openstack.org/* annotations are inherited
+      # here and cannot be removed: Helm merges annotation maps, and setting a
+      # key to null deletes it from the merged values but still renders a
+      # literal `key: null` into the Service metadata. They are inert -- the
+      # OpenStack CCM's service controller only acts on type: LoadBalancer, and
+      # a workload cluster never creates one. The chart's own kind overlay
+      # carries them for the same reason.
+      service:
+        type: NodePort
+        ports:
+          - name: status-port
+            port: 15021
+            protocol: TCP
+            targetPort: 15021
+          - name: http2
+            port: 80
+            protocol: TCP
+            targetPort: 8080
+            nodePort: 30080
+          - name: https
+            port: 443
+            protocol: TCP
+            targetPort: 8443
+            # Same variable the edge route file renders into its ServiceEntry
+            # and VirtualService, so the two sides of the hop cannot drift.
+            nodePort: 30443
