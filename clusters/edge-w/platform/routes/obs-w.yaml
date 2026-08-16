@@ -12,7 +12,7 @@ spec:
     - "hubble.obs-w.int.garys-lab.io"
   issuerRef:
     kind: ClusterIssuer
-    name: letsencrypt-staging
+    name: letsencrypt-production
 ---
 apiVersion: networking.istio.io/v1
 kind: Gateway
