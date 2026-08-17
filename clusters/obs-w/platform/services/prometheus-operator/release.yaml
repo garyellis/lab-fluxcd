@@ -1,0 +1,70 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-operator
+  namespace: monitoring
+spec:
+  interval: 10m
+  releaseName: prometheus-operator
+  chart:
+    spec:
+      chart: prometheus-operator
+      version: "0.1.1"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    crds: CreateReplace
+    remediation: {retries: 3}
+  upgrade:
+    crds: CreateReplace
+    remediation: {retries: 3}
+  targetNamespace: monitoring
+  values:
+    # The hub owns the controller and CRDs now. Monitoring definitions supplied
+    # by the wrapper are intentional, but nothing scrapes or evaluates them in
+    # this infrastructure-only phase.
+    prometheus-operator:
+      crds:
+        enabled: true
+      defaultRules:
+        create: false
+      prometheus:
+        enabled: false
+      alertmanager:
+        enabled: false
+      grafana:
+        enabled: false
+      thanosRuler:
+        enabled: false
+      nodeExporter:
+        enabled: false
+      kubeStateMetrics:
+        enabled: false
+      windowsMonitoring:
+        enabled: false
+      prometheusOperator:
+        enabled: true
+        serviceMonitor:
+          selfMonitor: true
+      kubernetesServiceMonitors:
+        enabled: false
+      kubeApiServer:
+        enabled: false
+      kubelet:
+        enabled: false
+      kubeControllerManager:
+        enabled: false
+      coreDns:
+        enabled: false
+      kubeDns:
+        enabled: false
+      kubeEtcd:
+        enabled: false
+      kubeScheduler:
+        enabled: false
+      kubeProxy:
+        enabled: false

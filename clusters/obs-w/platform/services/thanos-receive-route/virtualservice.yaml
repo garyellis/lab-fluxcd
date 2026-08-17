@@ -1,0 +1,24 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: thanos-receive
+  namespace: observability
+  labels:
+    platform.garys-lab.io/cluster: obs-w
+    platform.garys-lab.io/managed-by: ansible-platform-bootstrap
+spec:
+  gateways:
+    - istio-ingress/observability-receiver
+  hosts:
+    - "receiver.obs-w.int.garys-lab.io"
+  http:
+    - match:
+        - method:
+            exact: POST
+          uri:
+            exact: /api/v1/receive
+      route:
+        - destination:
+            host: thanos-receive.observability.svc.cluster.local
+            port:
+              number: 10908

@@ -262,6 +262,7 @@ metadata:
 spec:
   dependsOn:
     - name: istio-istiod
+    - name: workload-certificate
   interval: 10m
   path: clusters/obs-w/platform/services/observability-ingress
   prune: true
@@ -269,6 +270,113 @@ spec:
     kind: GitRepository
     name: flux-system
   timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prometheus-operator
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-charts-source
+  interval: 10m
+  path: clusters/obs-w/platform/services/prometheus-operator
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 15m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: observability-secrets
+  namespace: flux-system
+spec:
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  dependsOn:
+    - name: platform-ready
+  interval: 10m
+  path: clusters/obs-w/platform/observability-secrets
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: observability-network-policies
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: observability-secrets
+  interval: 10m
+  path: clusters/obs-w/platform/services/observability-network-policies
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: rustfs
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-charts-source
+    - name: observability-network-policies
+  interval: 10m
+  path: clusters/obs-w/platform/services/rustfs
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 15m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: thanos
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: prometheus-operator
+    - name: rustfs
+    - name: observability-secrets
+  interval: 10m
+  path: clusters/obs-w/platform/services/thanos
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 20m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: thanos-receive-route
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: thanos
+    - name: observability-ingress
+  interval: 10m
+  path: clusters/obs-w/platform/services/thanos-receive-route
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
   wait: true
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1

@@ -1,6 +1,6 @@
 ---
 creation_rules:
-  - path_regex: platform/(secrets|cert-manager-secrets|external-dns-secrets)/.*\.sops\.ya?ml$
+  - path_regex: platform/(secrets|cert-manager-secrets|external-dns-secrets|observability-secrets)/.*\.sops\.ya?ml$
     encrypted_regex: ^(data|stringData)$
     age:
       - age15zxr0z8cd6dqzqh3g7f8puzqwgn0f30qgrwfx26c32wljlzr9dns0ejad4

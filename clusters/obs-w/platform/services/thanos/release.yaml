@@ -1,0 +1,93 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: thanos
+  namespace: observability
+spec:
+  interval: 10m
+  releaseName: thanos
+  chart:
+    spec:
+      chart: thanos
+      version: "0.1.1"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: observability
+  values:
+    istio:
+      enabled: false
+    thanos:
+      fullnameOverride: thanos
+      global:
+        objstore:
+          createSecret: false
+          secretName: thanos-objstore
+          secretKey: objstore.yml
+          config: ""
+        # Definitions are allowed to arrive with their workload. With no
+        # collector or ruler they remain declarative metadata only.
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+          labels:
+            observability.garys-lab.io/collector: alloy
+        thanosRules:
+          enabled: true
+          labels:
+            observability.garys-lab.io/rule-set: thanos
+      kube-prometheus-stack:
+        enabled: false
+      rustfs:
+        enabled: false
+      receive:
+        enabled: true
+        mode: standalone
+        replicaCount: 1
+        tenancyHeader: THANOS-TENANT
+        tsdb:
+          retention: 48h
+          walCompression: true
+        persistence:
+          enabled: true
+          size: 25Gi
+          storageClass: local-path
+        vpa:
+          enabled: false
+      query:
+        enabled: true
+        replicaCount: 1
+      queryFrontend:
+        enabled: false
+      storegateway:
+        enabled: true
+        replicaCount: 1
+        persistence:
+          enabled: true
+          size: 10Gi
+          storageClass: local-path
+      compactor:
+        enabled: true
+        replicaCount: 1
+        persistence:
+          enabled: true
+          size: 20Gi
+          storageClass: local-path
+        retention:
+          resolutionRaw: 7d
+          resolution5m: 14d
+          resolution1h: 30d
+        vpa:
+          enabled: false
+      ruler:
+        enabled: false
+      bucket:
+        bucketweb:
+          enabled: false

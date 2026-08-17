@@ -1,0 +1,63 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rustfs
+  namespace: observability
+spec:
+  interval: 10m
+  releaseName: rustfs
+  chart:
+    spec:
+      chart: rustfs
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: observability
+  values:
+    rustfs:
+      fullnameOverride: rustfs
+      replicaCount: 1
+      mode:
+        standalone:
+          enabled: true
+        distributed:
+          enabled: false
+      secret:
+        existingSecret: rustfs-root
+        allowInsecureDefaults: false
+      storageclass:
+        name: local-path
+        dataStorageSize: 100Gi
+      config:
+        rustfs:
+          console_enable: "false"
+          obs_log_directory: ""
+      service:
+        type: ClusterIP
+      ingress:
+        enabled: false
+      gatewayApi:
+        enabled: false
+      mtls:
+        enabled: false
+    bootstrap:
+      enabled: true
+      endpoint: http://rustfs-svc:9000
+      bucket: thanos-metrics
+      adminSecret:
+        name: rustfs-root
+        accessKeyKey: RUSTFS_ACCESS_KEY
+        secretKeyKey: RUSTFS_SECRET_KEY
+      workloadSecret:
+        name: rustfs-thanos
+        accessKeyKey: accessKey
+        secretKeyKey: secretKey
+        create: false
