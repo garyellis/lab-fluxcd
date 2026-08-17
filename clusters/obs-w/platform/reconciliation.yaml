@@ -382,6 +382,43 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  name: thanos-query-route
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: thanos
+    - name: istio-gateway
+  interval: 10m
+  path: clusters/obs-w/platform/services/thanos-query-route
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: thanos
+    - name: observability-secrets
+    - name: observability-network-policies
+    - name: istio-gateway
+  interval: 10m
+  path: clusters/obs-w/platform/services/grafana
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 15m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
   name: external-dns-secrets
   namespace: flux-system
 spec:

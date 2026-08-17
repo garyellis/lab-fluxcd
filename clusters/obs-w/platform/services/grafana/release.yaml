@@ -1,0 +1,99 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  interval: 10m
+  releaseName: grafana
+  chart:
+    spec:
+      chart: grafana
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: observability
+  postRenderers:
+    # The reviewed wrapper's route is retained, but its generic apps-gateway
+    # reference is patched to obs-w's workload gateway.
+    - kustomize:
+        patches:
+          - target:
+              group: networking.istio.io
+              version: v1
+              kind: VirtualService
+              name: grafana
+            patch: |
+              - op: replace
+                path: /spec/gateways
+                value:
+                  - istio-ingress/workload-ingress
+  values:
+    appsDomain: "obs-w.int.garys-lab.io"
+    grafana:
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      deploymentStrategy:
+        type: Recreate
+      replicas: 1
+      resources:
+        requests: {cpu: 100m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 512Mi}
+      persistence:
+        enabled: false
+      service:
+        type: ClusterIP
+        port: 80
+      ingress:
+        enabled: false
+      route:
+        main:
+          enabled: false
+      grafana.ini:
+        server:
+          domain: "grafana.obs-w.int.garys-lab.io"
+          root_url: "https://grafana.obs-w.int.garys-lab.io/"
+        analytics:
+          reporting_enabled: false
+          check_for_updates: false
+        users:
+          allow_sign_up: false
+        auth.anonymous:
+          enabled: true
+          org_name: Main Org.
+          org_role: Viewer
+      datasources:
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: Thanos
+              uid: thanos
+              type: prometheus
+              access: proxy
+              url: http://thanos-query.observability.svc.cluster.local:9090
+              isDefault: true
+              editable: false
+              jsonData:
+                httpMethod: POST
+                prometheusType: Prometheus
+                timeInterval: 30s
+      dashboards: {}
+      dashboardProviders: {}
+      sidecar:
+        dashboards:
+          enabled: false
+        datasources:
+          enabled: false
+      serviceMonitor:
+        enabled: false
+      plugins: []

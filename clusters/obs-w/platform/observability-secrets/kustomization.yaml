@@ -5,3 +5,4 @@ resources:
   - rustfs-root.secret.sops.yaml
   - rustfs-thanos.secret.sops.yaml
   - thanos-objstore.secret.sops.yaml
+  - grafana-admin.secret.sops.yaml
