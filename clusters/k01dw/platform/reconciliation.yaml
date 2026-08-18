@@ -269,3 +269,55 @@ spec:
     kind: GitRepository
     name: flux-system
   wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prometheus-operator
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-charts-source
+  interval: 10m
+  path: clusters/k01dw/platform/services/prometheus-operator
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kube-state-metrics
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: lab-charts-source
+  interval: 10m
+  path: clusters/k01dw/platform/services/kube-state-metrics
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: metrics-collector
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: prometheus-operator
+    - name: kube-state-metrics
+  interval: 10m
+  path: clusters/k01dw/platform/services/metrics-collector
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 10m
+  wait: true
