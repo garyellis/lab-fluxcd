@@ -88,6 +88,12 @@ spec:
         type: ClusterIP
       controller:
         type: daemonset
+        # The Thanos profile ConfigMap is rendered by the wrapper rather than
+        # the dependency, so the upstream chart cannot include its content in
+        # the DaemonSet checksum. Couple the pod template to the immutable
+        # wrapper version to guarantee each reviewed profile change rolls pods.
+        podAnnotations:
+          metrics.garys-lab.io/profile-version: "alloy-0.1.3"
         hostNetwork: true
         hostPID: false
         dnsPolicy: ClusterFirstWithHostNet
