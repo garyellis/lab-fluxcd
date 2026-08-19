@@ -1,0 +1,231 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: observability
+spec:
+  interval: 10m
+  releaseName: alloy
+  chart:
+    spec:
+      chart: alloy
+      version: "0.1.3"
+      sourceRef:
+        kind: HelmRepository
+        name: lab-charts
+        namespace: flux-system
+      interval: 10m
+  install:
+    createNamespace: false
+    remediation: {retries: 3}
+  upgrade:
+    remediation: {retries: 3}
+  targetNamespace: observability
+  values:
+    profiles:
+      default: {enabled: false}
+      thanos:
+        enabled: true
+        receiver:
+          url: "https://receiver.obs-w.int.garys-lab.io/api/v1/receive"
+          serverName: "receiver.obs-w.int.garys-lab.io"
+          caFile: /etc/alloy/remote-ca/ca.crt
+          tenantHeader: THANOS-TENANT
+          tenant: "lab"
+        externalLabels:
+          cluster: "k01dw"
+          clusterRole: "workload"
+          lane: "01"
+          stage: "dev"
+          region: "west"
+          cloud: "openstack"
+          tenant: "k01"
+        clusterDomain: "cluster.local"
+        scrapeInterval: 60s
+        wal:
+          maxKeepalive: "2h"
+          sampleAgeLimit: "2h"
+          maxBackoff: "5m"
+      custom: {enabled: false}
+    alloy:
+      crds:
+        create: false
+      image:
+        registry: docker.io
+        repository: grafana/alloy
+        tag: "v1.12.1"
+        digest: "sha256:c311595156fca7b1131683d383dae1acfd29e8879d347161d2a6f714ebac0c0b"
+      configReloader:
+        # The ConfigMap checksum rolls the DaemonSet. Disabling this sidecar
+        # avoids an otherwise unpinned second executable in privileged pods.
+        enabled: false
+      rbac:
+        create: true
+        rules:
+          - apiGroups: [""]
+            resources: [endpoints, namespaces, pods, services]
+            verbs: [get, list, watch]
+          - apiGroups: [discovery.k8s.io]
+            resources: [endpointslices]
+            verbs: [get, list, watch]
+          - apiGroups: [monitoring.coreos.com]
+            resources: [podmonitors, probes, servicemonitors]
+            verbs: [get, list, watch]
+        clusterRules:
+          - apiGroups: [""]
+            resources: [nodes]
+            verbs: [get, list, watch]
+          - apiGroups: [""]
+            resources: [nodes/proxy]
+            verbs: [get]
+          - nonResourceURLs: [/metrics]
+            verbs: [get]
+      serviceAccount:
+        create: true
+        automountServiceAccountToken: true
+      service:
+        enabled: true
+        type: ClusterIP
+      controller:
+        type: daemonset
+        # The Thanos profile ConfigMap is rendered by the wrapper rather than
+        # the dependency, so the upstream chart cannot include its content in
+        # the DaemonSet checksum. Couple the pod template to the immutable
+        # wrapper version to guarantee each reviewed profile change rolls pods.
+        podAnnotations:
+          metrics.garys-lab.io/profile-version: "alloy-0.1.3"
+        hostNetwork: true
+        hostPID: false
+        dnsPolicy: ClusterFirstWithHostNet
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+        updateStrategy:
+          type: RollingUpdate
+          rollingUpdate: {maxUnavailable: 1}
+        volumes:
+          extra:
+            - name: host-root
+              hostPath: {path: /, type: Directory}
+            - name: host-proc
+              hostPath: {path: /proc, type: Directory}
+            - name: host-sys
+              hostPath: {path: /sys, type: Directory}
+            - name: alloy-data
+              hostPath: {path: /var/lib/alloy, type: DirectoryOrCreate}
+            - name: remote-ca
+              configMap:
+                name: lab-ca-bundle
+            - name: component-ca
+              emptyDir: {}
+        initContainers:
+          - name: seed-component-ca
+            image: "docker.io/alpine/openssl:3.5.4@sha256:42c7389ef077aed0eb4e96d0abbd094083d701bbaff1313073b061c0c9cd8278"
+            imagePullPolicy: IfNotPresent
+            command: [/bin/sh, -ec]
+            args:
+              - |
+                cp /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /component-ca/controller_manager.crt
+                cp /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /component-ca/scheduler.crt
+                for endpoint in controller_manager:10257 scheduler:10259; do
+                  name="${endpoint%%:*}"
+                  port="${endpoint##*:}"
+                  tmp="/component-ca/${name}.tmp"
+                  if openssl s_client -showcerts -connect "127.0.0.1:${port}" -servername localhost </dev/null 2>/dev/null |
+                    awk '/BEGIN CERTIFICATE/{n++} n==2{print} /END CERTIFICATE/ && n==2{exit}' >"${tmp}" &&
+                    openssl x509 -in "${tmp}" -noout >/dev/null 2>&1; then
+                    mv "${tmp}" "/component-ca/${name}.crt"
+                  else
+                    rm -f "${tmp}"
+                  fi
+                done
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534
+            volumeMounts:
+              - {name: component-ca, mountPath: /component-ca}
+        extraContainers:
+          - name: refresh-component-ca
+            image: "docker.io/alpine/openssl:3.5.4@sha256:42c7389ef077aed0eb4e96d0abbd094083d701bbaff1313073b061c0c9cd8278"
+            imagePullPolicy: IfNotPresent
+            command: [/bin/sh, -ec]
+            args:
+              - |
+                while true; do
+                  for endpoint in controller_manager:10257 scheduler:10259; do
+                    name="${endpoint%%:*}"
+                    port="${endpoint##*:}"
+                    tmp="/component-ca/${name}.tmp"
+                    if openssl s_client -showcerts -connect "127.0.0.1:${port}" -servername localhost </dev/null 2>/dev/null |
+                      awk '/BEGIN CERTIFICATE/{n++} n==2{print} /END CERTIFICATE/ && n==2{exit}' >"${tmp}" &&
+                      openssl x509 -in "${tmp}" -noout >/dev/null 2>&1; then
+                      if ! cmp -s "${tmp}" "/component-ca/${name}.crt"; then
+                        mv "${tmp}" "/component-ca/${name}.crt"
+                      else
+                        rm -f "${tmp}"
+                      fi
+                    else
+                      rm -f "${tmp}"
+                    fi
+                  done
+                  sleep 300
+                done
+            resources:
+              requests: {cpu: 5m, memory: 16Mi}
+              limits: {memory: 32Mi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534
+            volumeMounts:
+              - {name: component-ca, mountPath: /component-ca}
+      alloy:
+        configMap:
+          create: false
+          name: alloy-thanos-profile
+        clustering:
+          enabled: true
+          name: alloy-metrics
+        # hostNetwork pods see the node's interface names. Alloy's portable
+        # default interface probe only checks eth0/en0, which can fall back to
+        # loopback on hosts whose primary interface has another name. Advertise
+        # the downward-API host address so memberlist identifies every node
+        # uniquely and clustered scrapes cannot run on all replicas.
+        extraArgs:
+          - --cluster.advertise-address=$(K8S_HOST_IP):12345
+        enableReporting: false
+        extraPorts: []
+        storagePath: /var/lib/alloy
+        extraEnv:
+          - name: K8S_NODE_NAME
+            valueFrom:
+              fieldRef: {fieldPath: spec.nodeName}
+          - name: K8S_HOST_IP
+            valueFrom:
+              fieldRef: {fieldPath: status.hostIP}
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: true
+          capabilities:
+            add: [SYS_TIME]
+        resources:
+          requests: {cpu: 100m, memory: 256Mi}
+          limits: {memory: 512Mi}
+        mounts:
+          varlog: false
+          dockercontainers: false
+          extra:
+            - {name: host-root, mountPath: /host/root, readOnly: true}
+            - {name: host-proc, mountPath: /host/proc, readOnly: true}
+            - {name: host-sys, mountPath: /host/sys, readOnly: true}
+            - {name: alloy-data, mountPath: /var/lib/alloy}
+            - {name: remote-ca, mountPath: /etc/alloy/remote-ca, readOnly: true}
+            - {name: component-ca, mountPath: /etc/alloy/component-ca, readOnly: true}
