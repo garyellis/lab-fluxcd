@@ -192,6 +192,13 @@ spec:
         clustering:
           enabled: true
           name: alloy-metrics
+        # hostNetwork pods see the node's interface names. Alloy's portable
+        # default interface probe only checks eth0/en0, which can fall back to
+        # loopback on hosts whose primary interface has another name. Advertise
+        # the downward-API host address so memberlist identifies every node
+        # uniquely and clustered scrapes cannot run on all replicas.
+        extraArgs:
+          - --cluster.advertise-address=$(K8S_HOST_IP):12345
         enableReporting: false
         extraPorts: []
         storagePath: /var/lib/alloy
@@ -199,6 +206,9 @@ spec:
           - name: K8S_NODE_NAME
             valueFrom:
               fieldRef: {fieldPath: spec.nodeName}
+          - name: K8S_HOST_IP
+            valueFrom:
+              fieldRef: {fieldPath: status.hostIP}
         securityContext:
           privileged: true
           runAsUser: 0

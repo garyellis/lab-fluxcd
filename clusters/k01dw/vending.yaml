@@ -14,7 +14,7 @@ managedBy: ansible-platform-bootstrap
 # this is the record that says which one this cluster is still on.
 platformProfile:
   name: "promotion-micro"
-  revision: 4
+  revision: 5
   workerProvider: "ansible"
   fluxCheckpoint: "control_plane"
   # Claimed, not observed. roles/platform_policy asserts these at preflight and
