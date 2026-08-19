@@ -218,7 +218,10 @@ spec:
             add: [SYS_TIME]
         resources:
           requests: {cpu: 100m, memory: 256Mi}
-          limits: {memory: 512Mi}
+          # The k01dw clean-rebuild baseline held the control-plane collector
+          # near 400Mi RSS. 640Mi keeps that measured load near 65-70% while
+          # leaving the scheduling request unchanged on the small lab nodes.
+          limits: {memory: 640Mi}
         mounts:
           varlog: false
           dockercontainers: false
