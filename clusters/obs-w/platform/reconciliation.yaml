@@ -419,6 +419,22 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  name: grafana-dashboards
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: grafana
+  interval: 10m
+  path: clusters/obs-w/platform/services/grafana-dashboards
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
   name: external-dns-secrets
   namespace: flux-system
 spec:

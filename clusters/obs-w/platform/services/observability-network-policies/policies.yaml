@@ -98,3 +98,19 @@ spec:
               kubernetes.io/metadata.name: istio-ingress
       ports:
         - {protocol: TCP, port: 3000}
+---
+# The dashboard sidecar watches same-namespace ConfigMaps through the
+# Kubernetes API. Cilium's kube-apiserver entity survives Service-to-backend
+# translation without coupling this policy to a control-plane address.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-grafana-kube-apiserver
+  namespace: observability
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: grafana
+      app.kubernetes.io/name: grafana
+  egress:
+    - toEntities: [kube-apiserver]

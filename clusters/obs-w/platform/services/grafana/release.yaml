@@ -39,6 +39,11 @@ spec:
   values:
     appsDomain: "obs-w.int.garys-lab.io"
     grafana:
+      rbac:
+        create: false
+      serviceAccount:
+        create: true
+        name: grafana
       admin:
         existingSecret: grafana-admin
         userKey: admin-user
@@ -86,12 +91,36 @@ spec:
               jsonData:
                 httpMethod: POST
                 prometheusType: Prometheus
-                timeInterval: 30s
+                timeInterval: 1m
       dashboards: {}
       dashboardProviders: {}
       sidecar:
+        image:
+          registry: quay.io
+          repository: kiwigrid/k8s-sidecar
+          tag: "2.2.1"
+          sha: "a36a5946ea215ca6435a2a7e155a17cc360ac35664ad33fa8f640a1d6786100e"
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests: {cpu: 25m, memory: 32Mi}
+          limits: {cpu: 100m, memory: 128Mi}
         dashboards:
-          enabled: false
+          enabled: true
+          label: grafana_dashboard
+          labelValue: "1"
+          searchNamespace:
+            - "observability"
+          watchMethod: WATCH
+          resource: configmap
+          folderAnnotation: grafana_folder
+          provider:
+            name: git-authored
+            orgid: 1
+            folder: ""
+            type: file
+            disableDelete: false
+            allowUiUpdates: false
+            foldersFromFilesStructure: true
         datasources:
           enabled: false
       serviceMonitor:

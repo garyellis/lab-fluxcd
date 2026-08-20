@@ -1,0 +1,26 @@
+# The dashboard sidecar reads only Git-authored ConfigMaps in this namespace.
+# Grafana's upstream namespaced Role also grants Secret reads, so this Role and
+# binding deliberately replace that broader default.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-dashboard-reader
+  namespace: observability
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-dashboard-reader
+  namespace: observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: grafana-dashboard-reader
+subjects:
+  - kind: ServiceAccount
+    name: grafana
+    namespace: observability
