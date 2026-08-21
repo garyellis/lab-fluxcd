@@ -12,7 +12,7 @@ managedBy: ansible-platform-bootstrap
 # this is the record that says which one this cluster is still on.
 platformProfile:
   name: "observability-hub"
-  revision: 7
+  revision: 8
   workerProvider: "none"
   fluxCheckpoint: "control_plane"
   # Claimed, not observed. roles/platform_policy asserts these at preflight and
@@ -74,8 +74,8 @@ versions:
     rustfs: "0.1.0"
     thanos: "0.1.1"
     grafana: "0.1.0"
-    grafanaDashboards: "2.0.0"
+    grafanaDashboards: "2.1.0"
   observabilityChartDigests:
-    grafanaDashboards: "sha256:2e13658c479151130aa0640198f338a57a42dc4041ef62c6f906b046f2da7892"
+    grafanaDashboards: "sha256:15ceedf1d35ff4c3f4e8c7bf113c048a0beaafb22637215aba8353ec9ccaf623"
   observabilityImageDigests:
     grafanaSidecar: "sha256:a36a5946ea215ca6435a2a7e155a17cc360ac35664ad33fa8f640a1d6786100e"
